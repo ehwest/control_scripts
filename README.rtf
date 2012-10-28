@@ -1,0 +1,188 @@
+Shell Scripts And Their Functions 
+
+These shell scripts put the beaglebone onto the ting.com cellular network using a Sierra Wireless 250U USB modem.
+
+
+usb_discover.sh   -- A Shell script to search for USB ports and export the correct port for the devices involved.  We use the /bin/dmesg function to get a bunch of stuff and peel off the end of the file selecting certain key words.  The results are found in /etc/tty_bcm (which contains the ttyUSB0 or whatever string for the serial wireline meter).  The results are also found in /etc/tty_sierra for the Sierra Wireless device applicable to ppp.  The contents of this file is as follows:
+
+echo Discovering USB port assignments
+
+export tty_bcm=`/bin/dmesg | grep "pl2303 converter now attached to" | awk ' {tty=$NF}  END { print tty}'`
+
+export tty_sierra=`/bin/dmesg | grep "USB modem converter now attached" | awk ' { tty1=tty2;tty2=tty3;tty3=tty4;tty4=$NF }  END { print tty1}'`
+
+echo tty_bcm = $tty_bcm
+echo tty_sierra = $tty_sierra
+
+echo $tty_bcm > /etc/tty_bcm
+echo $tty_sierra > /etc/tty_sierra
+
+
+join_network.sh  -- A shell script to start up the ppp daemon and trigger the Sierra wireless device to set up an internet connection.  We use the usb_discover.sh above to append to the options.  We also update the DNS nameserver file and update the default route to use the new connection.  If you get an IP address you are on the network.  If not, try again. The contents of this script is as follows:
+
+export SHELL=/bin/sh
+export TERM=vt100
+export USER=root
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+export PWD=/home/root
+export HOME=/home/root
+export SHLVL=2
+exportLOGNAME=root
+
+#The script included jusb below gets the right USB port in an /etc/tty_sierra file
+/home/root/usb_discover.sh
+
+#The my_provider is a template of options lacking the usb port
+cat /home/root/my_provider > /etc/ppp/peers/provider
+
+export ttystring=/dev/`cat /etc/tty_sierra`
+echo $ttystring >> /etc/ppp/peers/provider
+
+echo First shut off ppp if it is running
+/usr/bin/poff
+sleep 5
+
+echo Now turning on ppp 
+/usr/bin/pon &
+sleep 10
+
+echo Now updating the resolver with saved resolver nameservers
+cp /etc/open.resolv.conf /etc/resolv.conf
+cat /etc/resolv.conf
+export gw=`ifconfig ppp0 |grep inet | awk '{print $3}'|sed /P-t-P:/s///`
+export PPP0=`ifconfig ppp0 | grep "inet addr" | awk '{ print $2 }' | awk 'BEGIN { FS=":" } { print $2 }'`
+echo PPP0=$PPP0
+if [ -z ${PPP0} ]
+then
+        echo Network Failed
+else
+        echo Network Joined
+        echo Adding a default route
+        /sbin/route add -net 0.0.0.0 gw $PPP0
+        echo Network Ready
+fi
+
+
+Note that for this script to work, some additional configuration files must be pre-set and filled as follows.
+
+/etc/open.resolv.conf   -- This file contains DNS name servers that anyone can use at any time.  We need this after attaching to the mobility network.  The first record is from opendns, the second is google’s nice service to all.
+
+nameserver 208.69.38.205
+nameserver 8.8.8.8
+nameserver 127.0.0.1
+
+
+/etc/ppp/options – Some settings for the ppp control of the modem.
+
+
+logfile /var/log/ppp/log
+noaccomp
+nopcomp
+nocrtscts
+lock
+maxfail 0
+
+/etc/ppp/ip-up  -- A script to capture some settings for environment variables.
+
+#!/bin/sh
+#
+# $Id: ip-up,v 1.2 1998/02/10 21:25:34 phil Exp $
+#
+# This script is run by the pppd after the link is established.
+# It uses run-parts to run scripts in /etc/ppp/ip-up.d, so to add routes,
+# set IP address, run the mailq etc. you should create script(s) there.
+#
+# Be aware that other packages may include /etc/ppp/ip-up.d scripts (named
+# after that package), so choose local script names with that in mind.
+#
+# This script is called with the following arguments:
+#    Arg  Name                          Example
+#    $1   Interface name                ppp0
+#    $2   The tty                       ttyS1
+#    $3   The link speed                38400
+#    $4   Local IP number               12.34.56.78
+#    $5   Peer  IP number               12.34.56.99
+#    $6   Optional ``ipparam'' value    foo
+
+# The  environment is cleared before executing this script
+# so the path must be reset
+PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin
+export PATH
+# These variables are for the use of the scripts run by run-parts
+PPP_IFACE="$1"
+PPP_TTY="$2"
+PPP_SPEED="$3"
+PPP_LOCAL="$4"
+PPP_REMOTE="$5"
+PPP_IPPARAM="$6"
+export PPP_IFACE PPP_TTY PPP_SPEED PPP_LOCAL PPP_REMOTE PPP_IPPARAM
+
+
+# as an additional convenience, $PPP_TTYNAME is set to the tty name,
+# stripped of /dev/ (if present) for easier matching.
+PPP_TTYNAME=`/usr/bin/basename "$2"`
+export PPP_TTYNAME 
+
+# Main Script starts here
+
+run-parts /etc/ppp/ip-up.d
+
+# last line
+
+
+
+
+
+
+
+
+/etc/ppp/peers/gprs-connect-chat – this works for Sprint
+
+
+# Name: gprs-connect-chat
+# Purpose: GPRS PPP Connect Script
+# Notes: CHAT is used to issue modem AT commands.  See CHAT man pages for more info.
+#
+# Activate the device and pause before sending additional AT commands.
+#'' AT+CFUN=1
+'' AT
+#
+# Verify GPRS Attach prior to attempting PDP Context negotiation.
+#'' AT+CGREG=1
+#
+# Define the PDP Context: Context ID, Routing Protocol, APN
+# Multiple definitions can be configured by assigning each a unique CID.
+# Use "isp.cingular"  or "Broadband" to connect to the Cingular/AT&T orange network.
+# Use "proxy" to connect to the AT&T blue network.
+#OK AT+CGDCONT=1,"IP","isp.cingular" or "Broadband"
+#
+# Set the dialing string and specify which PDP Context definition to use.
+OK ATD*99***1#
+#
+# Attempt to connect.
+CONNECT ''
+
+
+
+
+/home/root/my_provider – a script with options for ppp lacking only the /dev/ttyUSB3 part (for whatever port is involved)  The dev/ttyUSB part is tacked on as part of the join_network.sh script above.
+
+
+lcp-echo-failure 0
+lcp-echo-interval 0
+nodetach
+debug
+show-password
+connect "/usr/sbin/chat -v -V -S -s -t3 -f /etc/ppp/peers/gprs-connect-chat"
+disconnect /etc/ppp/peers/gprs-disconnect-chat
+115200 # GPRS and EDGE Devices.
+crtscts # Use for Serial, BlueTooth and USB devices.
+defaultroute
+novj
+nobsdcomp
+novjccomp
+nopcomp
+noaccomp
+persist
+maxfail 99
+
