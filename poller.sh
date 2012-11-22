@@ -1,5 +1,7 @@
 #/usr/bin/ntpdate -b -s -u pool.ntp.org
-echo STARTING script >> /home/root/logfile.txt
+
+date >> /home/root/logfile.txt
+echo "Starting poller.sh script." >> /home/root/logfile.txt
 export SHELL=/bin/sh
 export TERM=vt100
 export USER=root
@@ -8,42 +10,60 @@ export PWD=/home/root
 export HOME=/home/root
 export SHLVL=2
 exportLOGNAME=root
-d=`date` 
-echo "INSULAUDIT CONTENT START" > /tmp/onetouch_content.txt
-date >> /tmp/onetouch_content.txt
 
-/usr/bin/insulaudit -v onetouch hello >> /tmp/onetouch_content.txt
-#python /home/root/src/insulaudit/mini.py >> /tmp/onetouch_content.txt
+date >> /home/root/logfile.txt
+echo "Starting usb_discover.sh"  >> /home/root/logfile.txt
 
-date >> /tmp/onetouch_content.txt
-echo "INSULAUDIT CONTENT END" >> /tmp/onetouch_content.txt
+/home/root/usb_discover.sh >> /tmp/onetouch_content.txt
+export tty_bcm=/dev/`cat /etc/tty_bcm`
+export tty_sierra=/dev/`cat /etc/tty_sierra`
+echo tty_bcm=$tty_bcm  >> /tmp/onetouch_content.txt
+echo tty_sierra=$tty_sierra  >> /tmp/onetouch_content.txt
 
-echo "textcontent=" > /tmp/onetouch_content64.txt
-cat /tmp/onetouch_content.txt |base64 >> /tmp/onetouch_content64.txt
 
-env >> /home/root/logfile.txt
-echo $d >>/home/root/logfile.txt
-ifconfig >> /home/root/logfile.txt
-/usr/bin/poff
-sleep 5
-/usr/bin/pon
-sleep 10
-echo resolv.conf file contents >> /home/root/logfile.txt
-cat /etc/resolv.conf >> /home/root/logfile.txt
-cp /etc/open.resolv.conf /etc/resolv.conf
-export gw=`ifconfig ppp0 |grep inet | awk '{print $3}'|sed /P-t-P:/s///`
-export PPP0=`ifconfig ppp0 | grep "inet addr" | awk '{ print $2 }' | awk 'BEGIN { FS=":" } { print $2 }'`
-echo PPP0=$PPP0
-/sbin/route add -net 0.0.0.0 gw $PPP0
+date >> /home/root/logfile.txt
+echo "Starting insulaudit python script."  >> /home/root/logfile.txt
 
-ifconfig >> /home/root/logfile.txt
-echo remote is at $PPP0 >> /home/root/logfile.txt
+epochtime=`date +%s`
+filename1=model_read-${epochtime}
+/usr/bin/insulaudit onetouch --port ${tty_bcm} hello  >> /tmp/${filename1}
+cat /tmp/${filename1} >> /tmp/onetouch_content.txt
 
-/usr/bin/curl POST 'http://transactionalweb.com/mconnect.php' --data @/tmp/onetouch_content64.txt
+filename2=data_read-${epochtime}
+/usr/bin/insulaudit onetouch --port ${tty_bcm} sugars  >> /tmp/${filename2}
+cat /tmp/${filename2} >> /tmp/onetouch_content.txt
 
-/usr/bin/poff
-#route delete default gw 66.1.125.193 dev ppp0
-#route add default gw 192.168.1.1 dev eth0
-echo ENDING script >> /home/root/logfile.txt
-d=`date` 
-echo $d >>/home/root/logfile.txt
+message1=`/bin/base64 --wrap=0 /tmp/${filename1}`
+message2=`/bin/base64 --wrap=0 /tmp/${filename2}`
+
+echo $message1  >> /tmp/onetouch_content.txt
+echo $message2   >> /tmp/onetouch_content.txt
+
+
+date >> /home/root/logfile.txt
+echo "Joining the network with join_network.sh script."  >> /home/root/logfile.txt
+
+/home/root/join_network.sh   >> /home/root/logfile.txt
+
+date >> /home/root/logfile.txt
+echo "Getting current time/date from NTP server."  >> /home/root/logfile.txt
+
+/usr/bin/ntpdate -b -s -u pool.ntp.org
+date >> /home/root/logfile.txt
+
+
+
+date >> /home/root/logfile.txt
+echo "Starting curl to post the data."  >> /home/root/logfile.txt
+
+# send PUT request with data
+curl --request POST 'http://transactionalweb.com/mconnect.php' --data-urlencode 'postedcontent='${message1}
+curl --request POST 'http://transactionalweb.com/mconnect.php' --data-urlencode 'postedcontent='${message2}
+
+date >> /home/root/logfile.txt
+echo "Starting quit_network.sh script. "  >> /home/root/logfile.txt
+
+/home/root/quit_network.sh
+
+date >> /home/root/logfile.txt
+echo "Done running poller.sh script. "  >> /home/root/logfile.txt
