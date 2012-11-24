@@ -21,8 +21,8 @@ echo First shut off ppp if it is running
 sleep 5
 
 echo Now turning on ppp 
-/usr/bin/pon &
-sleep 10
+/usr/bin/pon  &
+sleep 30
 
 echo Now updating the resolver with saved resolver nameservers
 cp /etc/open.resolv.conf /etc/resolv.conf

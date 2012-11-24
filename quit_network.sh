@@ -1,4 +1,4 @@
-#/usr/bin/ntpdate -b -s -u pool.ntp.org
+/usr/bin/ntpdate -b -s -u pool.ntp.org
 echo STARTING quit_network.sh script >> /home/root/logfile.txt
 export SHELL=/bin/sh
 export TERM=vt100
