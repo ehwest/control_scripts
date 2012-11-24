@@ -6,7 +6,7 @@ In addition, we show how data is posted to a web site based on data from a local
 usb_discover.sh   -- A Shell script to search for USB ports and export the correct port for the devices involved.  We use the /bin/dmesg function to get a bunch of stuff and peel off the end of the file selecting certain key words.  The results are found in /etc/tty_bcm (which contains the ttyUSB0 or whatever string for the serial wireline meter).  The results are also found in /etc/tty_sierra for the Sierra Wireless device applicable to ppp.  The contents of this file is as follows:
 
 join_network.sh  -- A shell script to start up the ppp daemon and trigger the Sierra wireless device to set up an internet connection.  We use the usb_discover.sh above to append to the options.  We also update the DNS nameserver file and update the default route to use the new connection.  If you get an IP address you are on the network.  If not, try again. 
-/etc/open.resolv.conf   -- This file contains DNS name servers that anyone can use at any time.  We need this after attaching to the mobility network.  The first record is from opendns, the second is google nice service to all.
+/etc/open.resolv.conf   -- This file contains DNS name servers that anyone can use at any time.  We need this after attaching to the mobility network.  The first record is from opendns, the second is google’s nice service to all.
 
 nameserver 208.69.38.205
 nameserver 8.8.8.8
@@ -14,6 +14,7 @@ nameserver 127.0.0.1
 
 
 /etc/ppp/options file contains some settings essential for the ppp control of the modem.
+
 
 logfile /var/log/ppp/log
 noaccomp
@@ -23,6 +24,7 @@ lock
 maxfail 0
 
 /etc/ppp/ip-up  -- A script to capture some settings for environment variables.
+
 
 /etc/ppp/peers/gprs-connect-chat  for Sprint
 
